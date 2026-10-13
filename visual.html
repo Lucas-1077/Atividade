@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Análise de vendas 2023</title>
+<style>
+  :root {
+    --fundo: #f3f5f7;
+    --superficie: #ffffff;
+    --texto: #1c2733;
+    --suave: #5d6b78;
+    --linha: #d8dee4;
+    --destaque: #0f6b7a;
+    --destaque-texto: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fundo: #14191e;
+      --superficie: #1c232a;
+      --texto: #e6ebf0;
+      --suave: #9aa8b5;
+      --linha: #2e3944;
+      --destaque: #4fb3c4;
+      --destaque-texto: #0d1418;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--fundo);
+    color: var(--texto);
+    line-height: 1.5;
+  }
+  main { max-width: 900px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  .sub { color: var(--suave); margin: 0 0 24px; }
+  section {
+    background: var(--superficie);
+    border: 1px solid var(--linha);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  h2 { font-size: 1.05rem; margin: 0 0 12px; }
+  .opcoes { display: flex; flex-wrap: wrap; gap: 8px; border: 0; padding: 0; margin: 0; }
+  .opcoes legend { padding: 0; margin-bottom: 8px; font-weight: 600; }
+  .opcoes input { position: absolute; opacity: 0; }
+  .opcoes label {
+    padding: 8px 14px;
+    border: 1px solid var(--linha);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .opcoes input:checked + label {
+    background: var(--destaque);
+    border-color: var(--destaque);
+    color: var(--destaque-texto);
+  }
+  .opcoes input:focus-visible + label { outline: 3px solid var(--destaque); outline-offset: 2px; }
+  pre {
+    margin: 0;
+    white-space: pre-wrap;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: .9rem;
+  }
+  .grafico { display: block; max-width: 100%; height: auto; margin: 0 auto 12px; background: #fff; border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; font-size: .95rem; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--linha); }
+  td:last-child, th:last-child { text-align: right; }
+  .carregando { opacity: .5; }
+  .erro { color: #b3261e; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Análise de vendas 2023</h1>
+  <p class="sub">Resultado do seu código em Python, executado sem alterações.</p>
+
+  <section>
+    <fieldset class="opcoes" id="opcoes">
+      <legend>Qual categoria deseja ver?</legend>
+      <input type="radio" name="categoria" id="op1" value="1" checked><label for="op1">Eletrônicos</label>
+      <input type="radio" name="categoria" id="op2" value="2"><label for="op2">Livros</label>
+      <input type="radio" name="categoria" id="op3" value="3"><label for="op3">Roupas</label>
+    </fieldset>
+  </section>
+
+  <div id="resultado" aria-live="polite">
+    <section><p class="sub" style="margin:0">Executando a análise…</p></section>
+  </div>
+</main>
+
+<script>
+const resultado = document.getElementById("resultado");
+// Só as linhas do print que contêm esta palavra são exibidas
+const PALAVRA_DO_FILTRO = "faturamento";
+
+function criarSecao(titulo) {
+  const secao = document.createElement("section");
+  if (titulo) {
+    const h2 = document.createElement("h2");
+    h2.textContent = titulo;
+    secao.appendChild(h2);
+  }
+  return secao;
+}
+
+function mostrarErro(texto) {
+  resultado.innerHTML = "";
+  const secao = criarSecao("Não foi possível executar a análise");
+  const pre = document.createElement("pre");
+  pre.className = "erro";
+  pre.textContent = texto;
+  secao.appendChild(pre);
+  resultado.appendChild(secao);
+}
+
+async function executar(opcao) {
+  resultado.classList.add("carregando");
+  try {
+    const resposta = await fetch(`/api/executar?opcao=${opcao}`);
+    const dados = await resposta.json();
+    if (!resposta.ok) throw new Error(dados.erro || `Erro ${resposta.status}`);
+
+    resultado.innerHTML = "";
+
+    // O código imprime o menu e o faturamento; aqui só aparece a linha do faturamento
+    const linhas = dados.saida.split("\n").filter((l) => l.toLowerCase().includes(PALAVRA_DO_FILTRO));
+    if (linhas.length) {
+      const saida = criarSecao("Faturamento total");
+      const pre = document.createElement("pre");
+      pre.textContent = linhas.join("\n");
+      saida.appendChild(pre);
+      resultado.appendChild(saida);
+    }
+
+    if (dados.graficos.length) {
+      const secao = criarSecao("Gráficos");
+      dados.graficos.forEach((img64, i) => {
+        const img = document.createElement("img");
+        img.className = "grafico";
+        img.alt = `Gráfico ${i + 1} gerado pela análise`;
+        img.src = "data:image/png;base64," + img64;
+        secao.appendChild(img);
+      });
+      resultado.appendChild(secao);
+    }
+
+    if (dados.tabela) {
+      const secao = criarSecao("Soma das vendas do ano por categoria");
+      const caixa = document.createElement("div");
+      caixa.innerHTML = dados.tabela;  // HTML gerado pelo pandas (to_html) a partir do seu banco
+      secao.appendChild(caixa);
+      resultado.appendChild(secao);
+    }
+  } catch (e) {
+    mostrarErro(`${e.message}\n\nConfira se o servidor (python app.py) está rodando.`);
+  } finally {
+    resultado.classList.remove("carregando");
+  }
+}
+
+document.getElementById("opcoes").addEventListener("change", (e) => executar(e.target.value));
+executar(1);
+</script>
+</body>
+</html>
